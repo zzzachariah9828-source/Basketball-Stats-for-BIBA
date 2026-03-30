@@ -1,27 +1,58 @@
 # Basketball Scoreboard & Stats App
 
-Desktop app for macOS and Windows using Electron.
+A cross-platform desktop basketball scoreboard and player statistics tracker designed for real-time courtside use.  
+Built for fast input, clear visibility, and reliable game management under live conditions.
 
-## Run
+---
 
-```bash
-npm install
-npm start
-```
+## 📥 Download
 
-## Packaging
+Download the latest version from:
 
-```bash
-npm run dist:mac
-npm run dist:win
-```
+👉 https://github.com/zzzachariah9828-source/Basketball-Stats/releases
 
-## Features
+(macOS `.dmg` and Windows `.exe` available)
 
-- Setup screen with roster management (1-15 players per team).
-- Live game screen with period progression, break handling, overtime, and golden point.
-- BIBA-oriented clock behavior with visible game states.
-- Real-time player stat buttons, manual edit, reset, and undo.
-- Prominent timeout controls with active status and countdown.
-- Banner notification system replacing inline warnings.
-- One-click plain text export to clipboard.
+---
+
+## ✨ Features
+
+- Pre-game setup with team names and roster management (1–15 players per team)
+- Real-time scoreboard with automatic team score updates
+- Player statistics tracking:
+  - Points (+1 / +2 / +3)
+  - Assists, rebounds, steals, blocks, fouls
+- Full game flow management:
+  - 4 quarters (12 minutes each)
+  - Running clock (Q1–Q3)
+  - Stop clock (Q4 & overtime)
+  - Break and halftime handling
+  - Overtime (up to 2) + Golden Point
+- Timeout system:
+  - Remaining timeouts per team
+  - Active timeout state with countdown
+- Rule-based alerts:
+  - Player fouled out (5 fouls)
+  - Team bonus (4 fouls per period)
+- Banner notification system (top-of-screen alerts with dismiss)
+- Undo last action
+- Manual stat edit and reset
+- One-click export (clean plain text, copy-ready)
+
+---
+
+## 🎨 Design
+
+- Apple-style minimal interface
+- Clean, compact layout (no horizontal scrolling)
+- Optimized for fast courtside interaction
+- Subtle animations with responsive feedback
+- Strong visual hierarchy for critical game information
+
+---
+
+## ⚙️ Tech Stack
+
+- Electron
+- JavaScript
+- HTML / CSS
