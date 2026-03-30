@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Basketball Scoreboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="banner-container"></header>
+
+      <section id="setup-screen" class="panel active">
+        <h1>Basketball Scoreboard & Stats</h1>
+        <p class="subhead">BIBA rules configured for real-time courtside operations.</p>
+
+        <div class="setup-grid">
+          <div class="setup-card">
+            <h2>Home Team</h2>
+            <label>Team Name <input id="home-name" type="text" maxlength="40" /></label>
+            <div class="roster-controls">
+              <input id="home-player-input" type="text" placeholder="Add player name" maxlength="40" />
+              <button data-add-player="home">Add</button>
+            </div>
+            <ul id="home-roster" class="roster-list"></ul>
+            <small>1 to 15 players required.</small>
+          </div>
+
+          <div class="setup-card">
+            <h2>Away Team</h2>
+            <label>Team Name <input id="away-name" type="text" maxlength="40" /></label>
+            <div class="roster-controls">
+              <input id="away-player-input" type="text" placeholder="Add player name" maxlength="40" />
+              <button data-add-player="away">Add</button>
+            </div>
+            <ul id="away-roster" class="roster-list"></ul>
+            <small>1 to 15 players required.</small>
+          </div>
+        </div>
+
+        <button id="start-game" class="primary large">Start Game</button>
+      </section>
+
+      <section id="game-screen" class="panel">
+        <div id="edit-modal" class="edit-modal hidden">
+          <div class="edit-content">
+            <h3>Edit Player Stats</h3>
+            <div class="edit-grid">
+              <label>Points <input id="edit-points" type="number" min="0" /></label>
+              <label>Assists <input id="edit-assists" type="number" min="0" /></label>
+              <label>Rebounds <input id="edit-rebounds" type="number" min="0" /></label>
+              <label>Steals <input id="edit-steals" type="number" min="0" /></label>
+              <label>Blocks <input id="edit-blocks" type="number" min="0" /></label>
+              <label>Fouls <input id="edit-fouls" type="number" min="0" /></label>
+            </div>
+            <div class="controls-row">
+              <button id="save-edit" class="primary">Save</button>
+              <button id="cancel-edit">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="transition-card" class="transition-card hidden">
+          <strong id="transition-title"></strong>
+          <p id="transition-text"></p>
+          <button id="confirm-transition" class="primary">Confirm Transition</button>
+        </div>
+
+        <div class="top-status">
+          <div class="status-item"><span>Period</span><strong id="period-label">Q1</strong></div>
+          <div class="status-item"><span>Clock</span><strong id="clock-label">12:00</strong></div>
+          <div class="status-item"><span>State</span><strong id="state-label">paused</strong></div>
+        </div>
+
+        <div class="scoreboard-grid">
+          <article class="team-card" id="home-team-card"></article>
+          <article class="team-card" id="away-team-card"></article>
+        </div>
+
+        <section class="controls-row">
+          <button id="start-resume" class="primary">Start / Resume</button>
+          <button id="pause-game">Pause</button>
+          <button id="undo-action">Undo Last Action</button>
+          <button id="end-game" class="danger">End Game</button>
+          <button id="copy-export" class="secondary">Copy Final Text</button>
+        </section>
+
+        <section class="timeout-zone">
+          <h3>Timeout Control (60s)</h3>
+          <div class="timeout-controls">
+            <button class="timeout-btn" data-timeout="home">Home Timeout</button>
+            <div class="timeout-state">
+              <strong id="timeout-status">No active timeout</strong>
+              <span id="timeout-countdown">--</span>
+            </div>
+            <button class="timeout-btn" data-timeout="away">Away Timeout</button>
+          </div>
+        </section>
+
+        <section class="stats-grid" id="stats-grid"></section>
+      </section>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

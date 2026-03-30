@@ -1,0 +1,31 @@
+{
+  "name": "basketball-stats-scoreboard",
+  "version": "1.0.0",
+  "description": "Desktop basketball scoreboard and stats tracker",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.biba.scoreboard",
+    "productName": "Basketball Scoreboard",
+    "files": [
+      "main.js",
+      "index.html",
+      "styles.css",
+      "renderer.js"
+    ],
+    "mac": {
+      "target": "dmg"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.12"
+  }
+}
