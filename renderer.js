@@ -539,6 +539,78 @@ function stateText(g) {
   if (g.running) return isStopClockPeriod(g) ? '进行中 · 停表' : '进行中';
   return '已暂停';
 }
+
+/* ---- flip-board score (split-flap style per-digit animation) ---- */
+const REDUCE_MOTION = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const flipTimers = new WeakMap();   // .flip-digit -> timeout id
+const scoredTimers = new WeakMap(); // .sb-team -> timeout id
+const FLIP_MS = 320;
+function makeFlipCell(d) {
+  const cell = document.createElement('span');
+  cell.className = 'flip-digit';
+  const back = document.createElement('b'); back.className = 'fd-back'; back.textContent = d;
+  const front = document.createElement('b'); front.className = 'fd-front'; front.textContent = d;
+  cell.append(back, front);
+  return cell;
+}
+function flipDigitCell(cell, d) {
+  const front = cell.querySelector('.fd-front');
+  const back = cell.querySelector('.fd-back');
+  if (!front || !back) { cell.textContent = d; return false; }
+  const flipping = cell.classList.contains('flipping');
+  const showing = flipping ? back.textContent : front.textContent;
+  if (showing === d) {
+    // already on this value; if a flip was still mid-air toward it, settle cleanly
+    if (flipping) {
+      const t = flipTimers.get(cell); if (t) { clearTimeout(t); flipTimers.delete(cell); }
+      front.textContent = d; back.textContent = d; cell.classList.remove('flipping');
+    }
+    return false;
+  }
+  const prev = flipTimers.get(cell); if (prev) { clearTimeout(prev); flipTimers.delete(cell); }
+  if (REDUCE_MOTION) { front.textContent = d; back.textContent = d; cell.classList.remove('flipping'); return true; }
+  back.textContent = d;                       // the layer that gets revealed as the front flips away
+  cell.classList.remove('flipping'); void cell.offsetWidth; cell.classList.add('flipping');
+  flipTimers.set(cell, setTimeout(() => {
+    front.textContent = d; cell.classList.remove('flipping'); flipTimers.delete(cell);
+  }, FLIP_MS + 30));
+  return true;
+}
+function pulseTeamCard(flipNumEl) {
+  const card = flipNumEl && flipNumEl.closest ? flipNumEl.closest('.sb-team') : null;
+  if (!card || REDUCE_MOTION) return;
+  card.classList.add('scored');
+  const prev = scoredTimers.get(card); if (prev) clearTimeout(prev);
+  scoredTimers.set(card, setTimeout(() => { card.classList.remove('scored'); scoredTimers.delete(card); }, 750));
+}
+function rebuildFlipCells(container, target) {
+  container.querySelectorAll('.flip-digit').forEach((c) => { const t = flipTimers.get(c); if (t) { clearTimeout(t); flipTimers.delete(c); } });
+  container.innerHTML = '';
+  for (const d of target) container.appendChild(makeFlipCell(d));
+}
+function setFlipScore(container, value) {
+  try {
+    const target = String(value);
+    let cells = Array.from(container.querySelectorAll('.flip-digit'));
+    if (cells.length !== target.length) {
+      if (target.length === cells.length + 1 && cells.length > 0) {
+        // grew by exactly one digit (e.g. 8 -> 11): prepend a fresh cell so the change still flips
+        const c = makeFlipCell('0');
+        container.insertBefore(c, container.firstChild);
+        cells = [c, ...cells];
+      } else {
+        // first paint / restore / large jump / shrink: just show it, no flip
+        rebuildFlipCells(container, target);
+        return;
+      }
+    }
+    let changed = false;
+    target.split('').forEach((d, i) => { if (flipDigitCell(cells[i], d)) changed = true; });
+    if (changed) pulseTeamCard(container);
+  } catch {
+    container.textContent = String(value); // never let the animation break the score display
+  }
+}
 function statsTeamHTML(side, team) {
   const sorted = team.players.slice().sort((a, b) => a.number - b.number);
   let totalPts = 0;
@@ -606,8 +678,8 @@ function renderGame() {
   if (!g) return;
   el.sbHomeName.textContent = g.home.name;
   el.sbAwayName.textContent = g.away.name;
-  el.sbHomeScore.textContent = g.home.score;
-  el.sbAwayScore.textContent = g.away.score;
+  setFlipScore(el.sbHomeScore, g.home.score);
+  setFlipScore(el.sbAwayScore, g.away.score);
   el.sbHomeFouls.textContent = `犯规 ${g.home.fouls}`;
   el.sbAwayFouls.textContent = `犯规 ${g.away.fouls}`;
   el.sbHomeTO.textContent = `暂停 ${g.home.timeouts}`;
@@ -682,6 +754,8 @@ function startGame() {
   state.console = { team: 'home', number: '' };
   el.consoleNumber.value = '';
   consoleSay('选择球队并输入球衣号码（也可点下方表格里的球员）');
+  rebuildFlipCells(el.sbHomeScore, '0');
+  rebuildFlipCells(el.sbAwayScore, '0');
   persist();
   showGame();
   renderGame();
@@ -843,6 +917,9 @@ function init() {
     // counting, but pause the game clock so no game time is silently lost.
     state.game.running = state.game.break != null;
     state.game.status = state.game.break != null ? 'break' : (state.game.timeout ? 'timeout' : 'paused');
+    // show the restored scores immediately (no flip flurry on load)
+    rebuildFlipCells(el.sbHomeScore, String(state.game.home.score));
+    rebuildFlipCells(el.sbAwayScore, String(state.game.away.score));
     showGame();
     renderGame();
     notify('已恢复上次未结束的比赛（计时已暂停，确认无误后继续）。', 'info', 12000);
