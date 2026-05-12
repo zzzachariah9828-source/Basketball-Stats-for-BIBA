@@ -3,11 +3,13 @@ const path = require('path');
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1420,
-    height: 920,
-    minWidth: 1200,
-    minHeight: 780,
-    backgroundColor: '#f5f6fa',
+    width: 1340,
+    height: 860,
+    minWidth: 1024,
+    minHeight: 620,
+    backgroundColor: '#f4f6fb',
+    title: 'Basketball Scoreboard',
+    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       sandbox: true

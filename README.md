@@ -1,58 +1,46 @@
-# Basketball Scoreboard & Stats App
+# Basketball Scoreboard & Stats (BIBA)
 
-A cross-platform desktop basketball scoreboard and player statistics tracker designed for real-time courtside use.  
-Built for fast input, clear visibility, and reliable game management under live conditions.
+桌面篮球记分 & 球员数据工具。按 **球衣号码** 计分，单屏操作，整场比赛 **全部数据保存在本地**（无服务器、无数据库）。基于 Electron。
 
----
-
-## 📥 Download
-
-Download the latest version from:
-
-👉 https://github.com/zzzachariah9828-source/Basketball-Stats/releases
-
-(only macOS `.dmg` available)
+`index.html` / `styles.css` / `renderer.js` / `main.js` 都在仓库根目录。
 
 ---
 
-## ✨ Features
+## 功能
 
-- Pre-game setup with team names and roster management (1–15 players per team)
-- Real-time scoreboard with automatic team score updates
-- Player statistics tracking:
-  - Points (+1 / +2 / +3)
-  - Assists, rebounds, steals, blocks, fouls
-- Full game flow management:
-  - 4 quarters (12 minutes each)
-  - Running clock (Q1–Q3)
-  - Stop clock (Q4 & overtime)
-  - Break and halftime handling
-  - Overtime (up to 2) + Golden Point
-- Timeout system:
-  - Remaining timeouts per team
-  - Active timeout state with countdown
-- Rule-based alerts:
-  - Player fouled out (5 fouls)
-  - Team bonus (4 fouls per period)
-- Banner notification system (top-of-screen alerts with dismiss)
-- Undo last action
-- Manual stat edit and reset
-- One-click export (clean plain text, copy-ready)
+- **赛前设置**
+  - 主 / 客队名称
+  - 每队 1–15 名球员，每名球员包含 **球衣号码（0–99，队内不重复）+ 姓名**（姓名可输入完整内容，界面里只显示前 3 个字符）
+  - 名单是一个 **可直接编辑的表格**（改号码 / 改姓名 / 删行）
+  - **批量导入 / 粘贴**：一个文本框，每行 `号码 姓名`（空格、逗号或 Tab 分隔均可），支持「追加到表格」和「清空并替换」
+  - 名单 + 比赛进度自动保存在本地，意外关闭窗口不会丢
+- **单屏比赛界面（尽量不上下滚动）**
+  - 顶部常驻大比分牌：双方比分、比赛时钟、节次、状态、犯规数、剩余暂停、Bonus
+  - **球衣号码计分台**：选球队 → 输入球衣号（或点下方表格里的球员）→ `+1 / +2 / +3 / 犯规 / 助攻 / 篮板 / 抢断 / 盖帽`
+  - 下方两张紧凑的只读数据表（按号码排序，可点行选中、可单独修正）
+  - 裁判提醒（横幅 + 提示音）：节次时间到、暂停时间到、个人犯规接近 / 满 5 次罚下、全队进入 Bonus 等
+- BIBA 赛制：4 节 × 12 分钟；Q1–Q3 走表，Q4 与加时停表；中场 / 节间休息；最多 2 个加时 + Golden Point
+- 暂停系统（每次 60 秒）、撤销上一步、手动修正数据、一键复制比赛文本
 
 ---
 
-## 🎨 Design
+## 本地运行（开发）
 
-- Apple-style minimal interface
-- Clean, compact layout (no horizontal scrolling)
-- Optimized for fast courtside interaction
-- Subtle animations with responsive feedback
-- Strong visual hierarchy for critical game information
+```bash
+npm install
+npm start
+```
+
+## 打包
+
+- 本地：`npm run dist:mac`（生成 `.dmg`）/ `npm run dist:win`（生成 `.exe`）
+- **GitHub Actions**：仓库 → Actions → **Build & Release** → Run workflow，填入版本号（如 `1.2.0`）。
+  工作流会把版本号写进 `package.json`，构建 macOS `.dmg` 与 Windows `.exe` 安装包，并自动创建 tag 为 `v<版本号>` 的 GitHub Release，把两个安装包作为附件上传。
+
+下载安装包后本地打开即可使用，不需要任何服务器 / 数据库 / 联网。
 
 ---
 
-## ⚙️ Tech Stack
+## 技术栈
 
-- Electron
-- JavaScript
-- HTML / CSS
+Electron · 原生 HTML / CSS / JavaScript · 数据保存在浏览器 `localStorage`

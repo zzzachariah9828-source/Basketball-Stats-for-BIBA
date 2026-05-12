@@ -8,96 +8,181 @@
   </head>
   <body>
     <div id="app">
-      <header id="banner-container"></header>
+      <div id="banner-container"></div>
 
+      <!-- ============ SETUP SCREEN ============ -->
       <section id="setup-screen" class="panel active">
-        <h1>Basketball Scoreboard & Stats</h1>
-        <p class="subhead">BIBA rules configured for real-time courtside operations.</p>
+        <header class="setup-header">
+          <h1>Basketball Scoreboard &amp; Stats</h1>
+          <p class="subhead">BIBA rules · 按球衣号码计分 · 全程本地运行，无需数据库</p>
+        </header>
 
         <div class="setup-grid">
-          <div class="setup-card">
+          <div class="setup-card" data-side="home">
             <h2>Home Team</h2>
-            <label>Team Name <input id="home-name" type="text" maxlength="40" /></label>
-            <div class="roster-controls">
-              <input id="home-player-input" type="text" placeholder="Add player name" maxlength="40" />
-              <button data-add-player="home">Add</button>
+            <label>Team Name <input id="home-name" type="text" maxlength="40" placeholder="Home" /></label>
+
+            <div class="roster-add">
+              <input class="add-number" data-add-number="home" type="number" min="0" max="99" placeholder="#" />
+              <input class="add-name" data-add-name="home" type="text" maxlength="20" placeholder="球员姓名" />
+              <button data-add-player="home" class="primary">添加</button>
             </div>
-            <ul id="home-roster" class="roster-list"></ul>
-            <small>1 to 15 players required.</small>
+
+            <div class="roster-table-wrap">
+              <table class="roster-table">
+                <thead><tr><th class="col-num">#</th><th>姓名（显示前 3 字）</th><th class="col-act"></th></tr></thead>
+                <tbody id="home-roster" data-roster="home"></tbody>
+              </table>
+            </div>
+            <small id="home-count" class="roster-count">0 名球员 · 需要 1–15 名</small>
+
+            <details class="batch">
+              <summary>批量导入 / 粘贴名单</summary>
+              <p class="hint">每行一个球员：<code>号码 姓名</code>（空格、逗号或 Tab 分隔均可），例如 <code>23 张伟</code></p>
+              <textarea data-batch-text="home" rows="5" placeholder="23 张伟&#10;10,李明&#10;7  王芳"></textarea>
+              <div class="batch-actions">
+                <button data-batch-append="home" class="primary">追加到表格</button>
+                <button data-batch-replace="home">清空并替换</button>
+              </div>
+            </details>
           </div>
 
-          <div class="setup-card">
+          <div class="setup-card" data-side="away">
             <h2>Away Team</h2>
-            <label>Team Name <input id="away-name" type="text" maxlength="40" /></label>
-            <div class="roster-controls">
-              <input id="away-player-input" type="text" placeholder="Add player name" maxlength="40" />
-              <button data-add-player="away">Add</button>
+            <label>Team Name <input id="away-name" type="text" maxlength="40" placeholder="Away" /></label>
+
+            <div class="roster-add">
+              <input class="add-number" data-add-number="away" type="number" min="0" max="99" placeholder="#" />
+              <input class="add-name" data-add-name="away" type="text" maxlength="20" placeholder="球员姓名" />
+              <button data-add-player="away" class="primary">添加</button>
             </div>
-            <ul id="away-roster" class="roster-list"></ul>
-            <small>1 to 15 players required.</small>
+
+            <div class="roster-table-wrap">
+              <table class="roster-table">
+                <thead><tr><th class="col-num">#</th><th>姓名（显示前 3 字）</th><th class="col-act"></th></tr></thead>
+                <tbody id="away-roster" data-roster="away"></tbody>
+              </table>
+            </div>
+            <small id="away-count" class="roster-count">0 名球员 · 需要 1–15 名</small>
+
+            <details class="batch">
+              <summary>批量导入 / 粘贴名单</summary>
+              <p class="hint">每行一个球员：<code>号码 姓名</code>（空格、逗号或 Tab 分隔均可），例如 <code>23 张伟</code></p>
+              <textarea data-batch-text="away" rows="5" placeholder="23 张伟&#10;10,李明&#10;7  王芳"></textarea>
+              <div class="batch-actions">
+                <button data-batch-append="away" class="primary">追加到表格</button>
+                <button data-batch-replace="away">清空并替换</button>
+              </div>
+            </details>
           </div>
         </div>
 
-        <button id="start-game" class="primary large">Start Game</button>
+        <div class="setup-footer">
+          <button id="clear-saved" class="ghost" title="清除本地保存的名单/比赛">清除本地数据</button>
+          <div class="footer-right">
+            <button id="resume-game" class="secondary hidden">继续未结束的比赛</button>
+            <button id="start-game" class="primary large">Start Game</button>
+          </div>
+        </div>
       </section>
 
+      <!-- ============ GAME SCREEN ============ -->
       <section id="game-screen" class="panel">
-        <div id="edit-modal" class="edit-modal hidden">
-          <div class="edit-content">
-            <h3>Edit Player Stats</h3>
-            <div class="edit-grid">
-              <label>Points <input id="edit-points" type="number" min="0" /></label>
-              <label>Assists <input id="edit-assists" type="number" min="0" /></label>
-              <label>Rebounds <input id="edit-rebounds" type="number" min="0" /></label>
-              <label>Steals <input id="edit-steals" type="number" min="0" /></label>
-              <label>Blocks <input id="edit-blocks" type="number" min="0" /></label>
-              <label>Fouls <input id="edit-fouls" type="number" min="0" /></label>
+        <!-- Big always-visible scoreboard -->
+        <div class="scoreboard">
+          <div class="sb-team sb-home">
+            <div class="sb-name" id="sb-home-name">Home</div>
+            <div class="sb-score" id="sb-home-score">0</div>
+            <div class="sb-tags">
+              <span class="tag" id="sb-home-fouls">犯规 0</span>
+              <span class="tag" id="sb-home-to">暂停 1</span>
+              <span class="tag bonus hidden" id="sb-home-bonus">BONUS</span>
             </div>
-            <div class="controls-row">
-              <button id="save-edit" class="primary">Save</button>
-              <button id="cancel-edit">Cancel</button>
+          </div>
+
+          <div class="sb-center">
+            <div class="sb-period" id="period-label">Q1</div>
+            <div class="sb-clock" id="clock-label">12:00</div>
+            <div class="sb-state" id="state-label">paused</div>
+            <div class="sb-extra hidden" id="sb-extra"></div>
+          </div>
+
+          <div class="sb-team sb-away">
+            <div class="sb-name" id="sb-away-name">Away</div>
+            <div class="sb-score" id="sb-away-score">0</div>
+            <div class="sb-tags">
+              <span class="tag" id="sb-away-fouls">犯规 0</span>
+              <span class="tag" id="sb-away-to">暂停 1</span>
+              <span class="tag bonus hidden" id="sb-away-bonus">BONUS</span>
             </div>
           </div>
         </div>
 
-        <div id="transition-card" class="transition-card hidden">
+        <!-- Period / break transition prompt (in-flow so it never causes page scroll) -->
+        <div id="transition-card" class="transition-bar hidden">
           <strong id="transition-title"></strong>
           <p id="transition-text"></p>
-          <button id="confirm-transition" class="primary">Confirm Transition</button>
+          <button id="confirm-transition" class="primary">确认进入下一阶段</button>
         </div>
 
-        <div class="top-status">
-          <div class="status-item"><span>Period</span><strong id="period-label">Q1</strong></div>
-          <div class="status-item"><span>Clock</span><strong id="clock-label">12:00</strong></div>
-          <div class="status-item"><span>State</span><strong id="state-label">paused</strong></div>
-        </div>
-
-        <div class="scoreboard-grid">
-          <article class="team-card" id="home-team-card"></article>
-          <article class="team-card" id="away-team-card"></article>
-        </div>
-
-        <section class="controls-row">
-          <button id="start-resume" class="primary">Start / Resume</button>
-          <button id="pause-game">Pause</button>
-          <button id="undo-action">Undo Last Action</button>
-          <button id="end-game" class="danger">End Game</button>
-          <button id="copy-export" class="secondary">Copy Final Text</button>
-        </section>
-
-        <section class="timeout-zone">
-          <h3>Timeout Control (60s)</h3>
-          <div class="timeout-controls">
-            <button class="timeout-btn" data-timeout="home">Home Timeout</button>
-            <div class="timeout-state">
-              <strong id="timeout-status">No active timeout</strong>
-              <span id="timeout-countdown">--</span>
+        <!-- Jersey scoring console -->
+        <div class="console">
+          <div class="console-left">
+            <div class="team-toggle" role="group" aria-label="Select scoring team">
+              <button data-console-team="home" class="ct-btn active" id="ct-home">HOME</button>
+              <button data-console-team="away" class="ct-btn" id="ct-away">AWAY</button>
             </div>
-            <button class="timeout-btn" data-timeout="away">Away Timeout</button>
+            <label class="jersey-wrap">球衣 #
+              <input id="console-number" type="number" inputmode="numeric" min="0" max="99" placeholder="--" />
+            </label>
           </div>
-        </section>
+          <div class="console-buttons">
+            <button class="big score" data-score="1">+1</button>
+            <button class="big score" data-score="2">+2</button>
+            <button class="big score" data-score="3">+3</button>
+            <span class="console-sep"></span>
+            <button class="big stat" data-stat="fouls">犯规</button>
+            <button class="big stat" data-stat="assists">助攻</button>
+            <button class="big stat" data-stat="rebounds">篮板</button>
+            <button class="big stat" data-stat="steals">抢断</button>
+            <button class="big stat" data-stat="blocks">盖帽</button>
+          </div>
+          <div class="console-feedback" id="console-feedback">选择球队并输入球衣号码（也可点下方表格里的球员）</div>
+        </div>
 
-        <section class="stats-grid" id="stats-grid"></section>
+        <!-- Game controls -->
+        <div class="game-controls">
+          <button id="start-resume" class="primary">▶ 开始 / 继续</button>
+          <button id="pause-game">⏸ 暂停</button>
+          <button id="undo-action">↶ 撤销</button>
+          <button class="timeout-btn" data-timeout="home">Home 请求暂停</button>
+          <button class="timeout-btn" data-timeout="away">Away 请求暂停</button>
+          <button id="end-game" class="danger">结束比赛</button>
+          <button id="copy-export" class="secondary">复制比赛文本</button>
+          <button id="back-to-setup" class="ghost">返回设置</button>
+        </div>
+
+        <!-- Compact read-only stats tables -->
+        <div class="stats-grid" id="stats-grid"></div>
+
+        <!-- Manual stat correction -->
+        <div id="edit-modal" class="edit-modal hidden">
+          <div class="edit-content">
+            <h3 id="edit-title">编辑球员数据</h3>
+            <div class="edit-grid">
+              <label>得分 <input id="edit-points" type="number" min="0" /></label>
+              <label>助攻 <input id="edit-assists" type="number" min="0" /></label>
+              <label>篮板 <input id="edit-rebounds" type="number" min="0" /></label>
+              <label>抢断 <input id="edit-steals" type="number" min="0" /></label>
+              <label>盖帽 <input id="edit-blocks" type="number" min="0" /></label>
+              <label>犯规 <input id="edit-fouls" type="number" min="0" /></label>
+            </div>
+            <div class="controls-row">
+              <button id="save-edit" class="primary">保存</button>
+              <button id="cancel-edit">取消</button>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
 

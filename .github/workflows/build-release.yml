@@ -1,0 +1,149 @@
+name: Build & Release
+
+# Manually triggered. You type the version number; the workflow writes it into
+# package.json, builds the macOS .dmg and the Windows .exe installer, and then
+# publishes a GitHub Release tagged v<version> with both files attached.
+#
+# Note: the version is written into package.json *for the build only* (so the
+# packaged app reports the right version). It is not committed back to the repo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号 / Version (e.g. 1.2.0) — written into package.json and used as the release tag v<version>"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark the GitHub Release as a pre-release"
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: "Create the GitHub Release as a draft (not public until you publish it)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-release-${{ github.event.inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+            label: macOS (.dmg)
+            glob: "dist/*.dmg"
+          - os: windows-latest
+            platform: win
+            label: Windows (.exe)
+            glob: "dist/*.exe"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate & apply version
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW="${{ github.event.inputs.version }}"
+          VERSION="${RAW#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::版本号格式不正确: '$RAW' （应类似 1.2.0）"
+            exit 1
+          fi
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "package.json version -> $(node -p "require('./package.json').version")"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build installer (${{ matrix.platform }})
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run "dist:${{ matrix.platform }}" -- --publish never
+
+      - name: Collect installer(s)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          shopt -s nullglob
+          files=( ${{ matrix.glob }} )
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No installer matching '${{ matrix.glob }}' was produced."
+            ls -la dist || true
+            exit 1
+          fi
+          cp "${files[@]}" out/
+          ls -la out
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.platform }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          find artifacts -type f \( -name "*.dmg" -o -name "*.exe" \) -exec cp {} release/ \;
+          echo "Files to publish:"
+          ls -la release
+          if [ -z "$(ls -A release)" ]; then
+            echo "::error::No .dmg / .exe files were found in the build artifacts."
+            exit 1
+          fi
+
+      - name: Create / update GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW="${{ github.event.inputs.version }}"
+          VERSION="${RAW#v}"
+          TAG="v$VERSION"
+          FLAGS=()
+          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then FLAGS+=(--prerelease); fi
+          if [ "${{ github.event.inputs.draft }}" = "true" ]; then FLAGS+=(--draft); fi
+          # If this version was released before (re-run), remove the old release + tag first.
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" release/* \
+            --target "${{ github.sha }}" \
+            --title "Basketball Scoreboard $TAG" \
+            --notes "自动构建：版本 $VERSION（macOS .dmg + Windows .exe 安装包）。本地下载后即可运行，数据全部保存在本地。" \
+            "${FLAGS[@]}"
+          echo "Published release $TAG"

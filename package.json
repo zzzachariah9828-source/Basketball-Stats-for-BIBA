@@ -11,6 +11,9 @@
   "build": {
     "appId": "com.biba.scoreboard",
     "productName": "Basketball Scoreboard",
+    "directories": {
+      "output": "dist"
+    },
     "files": [
       "main.js",
       "index.html",
@@ -20,11 +23,11 @@
     ],
     "mac": {
       "target": "dmg",
-      "icon": "assets/icon.icns"
+      "icon": "assets/icon.icns",
+      "identity": null
     },
     "win": {
-      "target": "nsis",
-      "icon": "assets/icon.ico"
+      "target": "nsis"
     }
   },
   "devDependencies": {
