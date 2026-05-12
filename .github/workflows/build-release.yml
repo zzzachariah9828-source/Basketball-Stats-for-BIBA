@@ -75,9 +75,10 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Build installer (${{ matrix.platform }})
+        # macOS: electron-builder ad-hoc signs the app (mac.identity "-" in
+        # package.json) — required on Apple Silicon so the .dmg isn't reported
+        # as "damaged". No real cert / notarization (intentional, free path).
         shell: bash
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run "dist:${{ matrix.platform }}" -- --publish never
 
       - name: Collect installer(s)
@@ -139,11 +140,19 @@ jobs:
           FLAGS=()
           if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then FLAGS+=(--prerelease); fi
           if [ "${{ github.event.inputs.draft }}" = "true" ]; then FLAGS+=(--draft); fi
+          cat > notes.md <<EOF
+          **版本 $VERSION** · macOS \`.dmg\` + Windows \`.exe\` 安装包。本地运行，数据全部保存在本地，不需要服务器 / 数据库 / 联网。
+
+          ### 首次打开说明
+          应用没有购买苹果 / 微软的代码签名证书，所以第一次打开会有一次安全提示——**这是正常现象，安装包本身没有损坏**。
+          - **macOS**：下载 \`.dmg\` → 拖到「应用程序」。第一次打开如提示「无法验证开发者」，**右键点应用图标 → 打开**（或打开「系统设置 → 隐私与安全性」，往下找到这个 App 点「仍要打开」）；之后就能正常双击了。想完全去掉提示，可以在「终端」运行：\`xattr -cr "/Applications/Basketball Scoreboard.app"\`
+          - **Windows**：运行 \`.exe\` 安装包。如弹出「Windows 已保护你的电脑」，点**更多信息 → 仍要运行**即可。
+          EOF
           # If this version was released before (re-run), remove the old release + tag first.
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" release/* \
             --target "${{ github.sha }}" \
             --title "Basketball Scoreboard $TAG" \
-            --notes "自动构建：版本 $VERSION（macOS .dmg + Windows .exe 安装包）。本地下载后即可运行，数据全部保存在本地。" \
+            --notes-file notes.md \
             "${FLAGS[@]}"
           echo "Published release $TAG"
