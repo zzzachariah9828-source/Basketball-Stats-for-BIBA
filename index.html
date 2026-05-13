@@ -80,6 +80,7 @@
         <div class="setup-footer">
           <button id="clear-saved" class="ghost" title="清除本地保存的名单/比赛">清除本地数据</button>
           <div class="footer-right">
+            <button id="tutorial-setup" class="ghost" title="重新查看教程">? 教程</button>
             <button id="resume-game" class="secondary hidden">继续未结束的比赛</button>
             <button id="start-game" class="primary large">Start Game</button>
           </div>
@@ -162,6 +163,7 @@
           <button id="copy-export" class="secondary">复制比赛文本</button>
           <button id="copy-detail" class="secondary">复制全部信息</button>
           <button id="back-to-setup" class="ghost">返回设置</button>
+          <button id="tutorial-game" class="ghost" title="重新查看教程">? 教程</button>
         </div>
 
         <!-- Compact read-only stats tables -->
@@ -186,6 +188,24 @@
           </div>
         </div>
       </section>
+
+      <!-- ============ TUTORIAL OVERLAY ============ -->
+      <div id="tutorial-overlay" class="tut-overlay hidden" aria-hidden="true">
+        <div class="tut-mask" id="tut-mask"></div>
+        <div class="tut-spot" id="tut-spot"></div>
+        <div class="tut-card" id="tut-card" role="dialog" aria-modal="true" aria-labelledby="tut-title">
+          <div class="tut-step" id="tut-step"></div>
+          <h3 class="tut-title" id="tut-title"></h3>
+          <p class="tut-text" id="tut-text"></p>
+          <div class="tut-actions">
+            <button id="tut-skip" class="ghost">跳过教程</button>
+            <div class="tut-nav">
+              <button id="tut-prev">← 上一步</button>
+              <button id="tut-next" class="primary">下一步 →</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="renderer.js"></script>

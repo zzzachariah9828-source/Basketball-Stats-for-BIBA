@@ -970,6 +970,243 @@ el.copyDetail.addEventListener('click', async () => {
 });
 
 /* ====================================================== */
+/* TUTORIAL — spotlight onboarding                         */
+/* ====================================================== */
+const TUTORIAL_KEY = 'biba-tutorial-seen-v1';
+const TUT_STEPS = {
+  setup: [
+    { target: null,
+      title: '欢迎使用 BIBA 篮球记分',
+      text: '这是一个 30 秒的小教程，带你过一遍设置和比赛界面。点「下一步」继续，随时可以「跳过教程」。' },
+    { target: '#home-name', placement: 'bottom',
+      title: '① 填主队名字',
+      text: '左边是主队，右边是客队，先填好两队名字。' },
+    { target: '[data-add-player="home"]', spotSelector: '.setup-card[data-side="home"] .roster-add', placement: 'bottom',
+      title: '② 一个一个加球员',
+      text: '输入球衣号码（0–99）和姓名，点「添加」加到名单。<b>回车键也可以提交</b>。' },
+    { target: '#home-roster', spotSelector: '.setup-card[data-side="home"] .roster-table-wrap', placement: 'bottom',
+      title: '③ 名单是可编辑的表格',
+      text: '已添加的球员在这里。<b>直接改号码或姓名都行</b>，点 ✕ 删除一行。姓名只显示前 3 个字，但完整内容会保存。' },
+    { target: '.setup-card[data-side="home"] .batch summary', spotSelector: '.setup-card[data-side="home"] .batch', placement: 'top', expandBatch: 'home',
+      title: '④ 也可以批量粘贴名单',
+      text: '展开这里，每行 <code>号码 姓名</code>（空格、逗号或 Tab 分隔都行），一次性把整个名单粘贴进来。' },
+    { target: '#home-count', placement: 'top',
+      title: '⑤ 留意名单状态',
+      text: '需要 <b>1–15 名</b>球员。号码重复、姓名为空都会在这里红字提示——必须修掉才能开始比赛。' },
+    { target: '.setup-card[data-side="away"]', placement: 'left',
+      title: '⑥ 客队同样的方式',
+      text: '右边是客队，填法和主队一模一样。' },
+    { target: '#start-game', placement: 'top',
+      title: '⑦ 两队都设置好后，点这里',
+      text: '点「Start Game」进入比赛界面，下一节教你怎么操作。' }
+  ],
+  game: [
+    { target: null,
+      title: '比赛界面快速教程',
+      text: '马上教你怎么记分、调时钟、修数据。' },
+    { target: '.scoreboard', placement: 'bottom',
+      title: '① 顶部比分牌',
+      text: '左主队、右客队、中间是节次 / 比赛时钟 / 状态。比分变化时会有翻牌动画。' },
+    { target: '.team-toggle', spotSelector: '.console-left', placement: 'bottom',
+      title: '② 第一步：选球队 + 输号码',
+      text: '先点 <b>HOME / AWAY</b> 选要给哪队记数据，再在 <b>球衣 #</b> 框里输号码。也可以直接点下方表格里的某一行来选中那个球员。' },
+    { target: '[data-score="2"]', spotSelector: '.console-buttons', placement: 'top',
+      title: '③ 加分',
+      text: '选好球员后，点 <b>+1（罚球）/ +2（两分）/ +3（三分）</b>，比分和该球员的得分会同时增加。' },
+    { target: '[data-stat="fouls"]', spotSelector: '.console-buttons', placement: 'top',
+      title: '④ 记其他数据',
+      text: '<b>犯规 / 助攻 / 篮板 / 抢断 / 盖帽</b>各按一次记一次。犯规会同步累加全队犯规——满 4 次进 BONUS，球员满 5 次罚下，都会自动提示。' },
+    { target: '#undo-action', placement: 'top',
+      title: '⑤ 记错了？撤销',
+      text: '<b>所有计分 / 计数 / 暂停操作都能撤销</b>，最多 100 步。这是最常用的「减分」方式。' },
+    { target: '#stats-grid', placement: 'top',
+      title: '⑥ 想直接改某个数？',
+      text: '下方两张表显示每个球员的数据。点行最右边的 <b>✎</b> 可以手动修正得分 / 犯规等任何字段（比分和全队犯规会跟着同步）。' },
+    { target: '#start-resume', spotSelector: '.game-controls', placement: 'top',
+      title: '⑦ 时钟控制',
+      text: '<b>▶ 开始 / 继续</b> 启动时钟、<b>⏸ 暂停</b>暂停、<b>⏭ 跳过倒计时</b>跳过当前节 / 休息 / 暂停。节末 / 中场会弹黄色横条提示进入下一阶段。' },
+    { target: '.timeout-btn', spotSelector: '.game-controls', placement: 'top',
+      title: '⑧ 球队请求暂停 & 收尾',
+      text: '金色按钮 = 球队请求 60 秒暂停（自动倒计时）。<b>结束比赛</b>封盘；<b>复制比赛文本 / 复制全部信息</b>把结果拷到剪贴板。教程结束，祝比赛顺利 ⛹' }
+  ]
+};
+
+const tutorial = { active: false, screen: null, step: 0 };
+let tutResizeBound = false;
+function loadTutSeen() {
+  try { return JSON.parse(localStorage.getItem(TUTORIAL_KEY) || '{}') || {}; }
+  catch { return {}; }
+}
+function markTutSeen(screen) {
+  const seen = loadTutSeen();
+  seen[screen] = true;
+  try { localStorage.setItem(TUTORIAL_KEY, JSON.stringify(seen)); } catch { /* ignore */ }
+}
+function tutorialSeen(screen) { return !!loadTutSeen()[screen]; }
+
+function tutEl(id) { return document.getElementById(id); }
+function startTutorial(screen) {
+  if (!TUT_STEPS[screen]) return;
+  tutorial.active = true;
+  tutorial.screen = screen;
+  tutorial.step = 0;
+  tutEl('tutorial-overlay').classList.remove('hidden');
+  if (!tutResizeBound) {
+    window.addEventListener('resize', () => { if (tutorial.active) renderTutStep(); });
+    window.addEventListener('scroll', () => { if (tutorial.active) renderTutStep(); }, true);
+    tutResizeBound = true;
+  }
+  renderTutStep();
+}
+function endTutorial(markSeen) {
+  if (markSeen && tutorial.screen) markTutSeen(tutorial.screen);
+  tutorial.active = false;
+  tutorial.screen = null;
+  tutorial.step = 0;
+  tutEl('tutorial-overlay').classList.add('hidden');
+}
+function tutNext() {
+  const steps = TUT_STEPS[tutorial.screen];
+  if (!steps) return;
+  if (tutorial.step >= steps.length - 1) { endTutorial(true); return; }
+  tutorial.step += 1;
+  renderTutStep();
+}
+function tutPrev() {
+  if (tutorial.step <= 0) return;
+  tutorial.step -= 1;
+  renderTutStep();
+}
+function clampToViewport(left, top, w, h, pad = 12) {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  left = Math.min(Math.max(pad, left), Math.max(pad, vw - w - pad));
+  top  = Math.min(Math.max(pad, top),  Math.max(pad, vh - h - pad));
+  return { left, top };
+}
+function placeTutCard(spotRect, placement) {
+  const card = tutEl('tut-card');
+  card.removeAttribute('data-arrow');
+  // Reset positioning so measurement reflects natural size.
+  card.style.left = '0px';
+  card.style.top  = '0px';
+  card.style.transform = 'none';
+  const cw = card.offsetWidth, ch = card.offsetHeight;
+  const gap = 14;
+  let left, top, arrow = null;
+  if (!spotRect) {
+    left = (window.innerWidth - cw) / 2;
+    top  = (window.innerHeight - ch) / 2;
+  } else {
+    const tries = [];
+    if (placement === 'bottom') tries.push('bottom', 'top', 'right', 'left');
+    else if (placement === 'top') tries.push('top', 'bottom', 'right', 'left');
+    else if (placement === 'left') tries.push('left', 'right', 'bottom', 'top');
+    else if (placement === 'right') tries.push('right', 'left', 'bottom', 'top');
+    else tries.push('bottom', 'top', 'right', 'left');
+    const fits = (l, t) => l >= 8 && t >= 8 && l + cw <= window.innerWidth - 8 && t + ch <= window.innerHeight - 8;
+    let chosen = null;
+    for (const p of tries) {
+      let l, t;
+      if (p === 'bottom') { l = spotRect.left; t = spotRect.bottom + gap; arrow = 'up'; }
+      else if (p === 'top') { l = spotRect.left; t = spotRect.top - ch - gap; arrow = 'down'; }
+      else if (p === 'left') { l = spotRect.left - cw - gap; t = spotRect.top; arrow = 'right'; }
+      else { l = spotRect.right + gap; t = spotRect.top; arrow = 'left'; }
+      if (fits(l, t)) { chosen = { l, t, arrow }; break; }
+    }
+    if (chosen) { left = chosen.l; top = chosen.t; }
+    else {
+      // nothing fit cleanly — fall back to clamped bottom placement
+      left = spotRect.left;
+      top  = spotRect.bottom + gap;
+      arrow = 'up';
+    }
+  }
+  const pos = clampToViewport(left, top, cw, ch);
+  card.style.left = pos.left + 'px';
+  card.style.top  = pos.top + 'px';
+  if (arrow && spotRect) card.setAttribute('data-arrow', arrow);
+}
+function renderTutStep() {
+  const steps = TUT_STEPS[tutorial.screen];
+  if (!steps) return;
+  const step = steps[tutorial.step];
+  const overlay = tutEl('tutorial-overlay');
+  const spot = tutEl('tut-spot');
+  tutEl('tut-step').textContent = `${tutorial.step + 1} / ${steps.length}`;
+  tutEl('tut-title').textContent = step.title;
+  tutEl('tut-text').innerHTML = step.text;
+  tutEl('tut-prev').disabled = tutorial.step === 0;
+  tutEl('tut-next').textContent = tutorial.step === steps.length - 1 ? '完成 ✓' : '下一步 →';
+
+  // Pre-actions per step (e.g. open the batch <details> so the user sees it).
+  if (step.expandBatch) {
+    const d = document.querySelector(`.setup-card[data-side="${step.expandBatch}"] .batch`);
+    if (d && !d.open) d.open = true;
+  }
+
+  // Find the spot target.
+  let rect = null;
+  if (step.target) {
+    const spotSel = step.spotSelector || step.target;
+    const elTarget = document.querySelector(spotSel);
+    if (elTarget) {
+      // Scroll into view if needed (only nudges scrollable ancestors, not the
+      // whole page, since the game screen is locked to viewport height).
+      try { elTarget.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); } catch { /* ignore */ }
+      rect = elTarget.getBoundingClientRect();
+    }
+  }
+  if (rect && rect.width > 0 && rect.height > 0) {
+    overlay.classList.remove('no-spot');
+    const pad = 6;
+    spot.style.left   = (rect.left - pad) + 'px';
+    spot.style.top    = (rect.top - pad) + 'px';
+    spot.style.width  = (rect.width + pad * 2) + 'px';
+    spot.style.height = (rect.height + pad * 2) + 'px';
+    placeTutCard({
+      left: rect.left - pad, top: rect.top - pad,
+      right: rect.right + pad, bottom: rect.bottom + pad,
+      width: rect.width + pad * 2, height: rect.height + pad * 2
+    }, step.placement || 'bottom');
+  } else {
+    overlay.classList.add('no-spot');
+    placeTutCard(null, 'center');
+  }
+}
+
+/* tutorial wiring */
+tutEl('tut-next').addEventListener('click', tutNext);
+tutEl('tut-prev').addEventListener('click', tutPrev);
+tutEl('tut-skip').addEventListener('click', () => endTutorial(true));
+document.addEventListener('keydown', (e) => {
+  if (!tutorial.active) return;
+  // No Enter handler here: Enter would re-fire the focused "下一步" button.
+  if (e.key === 'Escape') endTutorial(true);
+  else if (e.key === 'ArrowRight') tutNext();
+  else if (e.key === 'ArrowLeft') tutPrev();
+});
+document.getElementById('tutorial-setup').addEventListener('click', () => startTutorial('setup'));
+document.getElementById('tutorial-game').addEventListener('click', () => startTutorial('game'));
+
+/* Auto-launch hooks: wrap showSetup / showGame so we trigger the tutorial the
+ * first time each screen is shown (only when no game is mid-flight, so we
+ * don't disrupt an actively-running clock). */
+const _origShowSetup = showSetup;
+showSetup = function () {
+  _origShowSetup();
+  if (!tutorial.active && !tutorialSeen('setup')) {
+    setTimeout(() => startTutorial('setup'), 250);
+  }
+};
+const _origShowGame = showGame;
+showGame = function () {
+  _origShowGame();
+  if (!tutorial.active && !tutorialSeen('game')) {
+    setTimeout(() => startTutorial('game'), 350);
+  }
+};
+
+/* ====================================================== */
 /* INIT                                                    */
 /* ====================================================== */
 function init() {

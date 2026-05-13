@@ -440,3 +440,87 @@ code { background: var(--surface-3); padding: 1.5px 6px; border-radius: 5px; fon
   .scoreboard { grid-template-columns: 1fr; }
   .sb-center { order: -1; }
 }
+
+/* =====================================================================
+ * TUTORIAL (spotlight onboarding)
+ * ===================================================================== */
+.tut-overlay { position: fixed; inset: 0; z-index: 400; }
+.tut-overlay.hidden { display: none !important; }
+
+/* Dim layer that covers everything. The spotlight cuts a hole in it via
+ * box-shadow trick (see .tut-spot). */
+.tut-mask {
+  position: absolute; inset: 0;
+  background: rgba(10, 16, 30, .55);
+  transition: background-color var(--t) var(--ease);
+  pointer-events: auto;
+}
+.tut-overlay.no-spot .tut-mask { background: rgba(10, 16, 30, .6); }
+
+/* The spotlight: a small positioned rectangle whose box-shadow paints the dim
+ * everywhere outside its rounded border. The mask above is hidden while a
+ * spot is active so the shadow does the dimming. */
+.tut-spot {
+  position: absolute; top: 0; left: 0; width: 0; height: 0;
+  border-radius: 14px;
+  pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(10, 16, 30, .58),
+              inset 0 0 0 2px rgba(255, 255, 255, .92),
+              0 0 0 4px rgba(37, 99, 235, .55);
+  transition: top .25s var(--ease), left .25s var(--ease),
+              width .25s var(--ease), height .25s var(--ease);
+}
+.tut-overlay.no-spot .tut-spot,
+.tut-overlay.hidden .tut-spot { display: none; }
+/* When a spot is active, the underlying mask must be transparent so only the
+ * spot's shadow does the dimming. We keep pointer-events on the mask so it
+ * blocks clicks elsewhere on the page during the tour. */
+.tut-overlay:not(.no-spot) .tut-mask { background: transparent; }
+
+/* Tooltip card */
+.tut-card {
+  position: absolute;
+  width: min(360px, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 16px 16px 14px;
+  animation: pop var(--t) var(--ease);
+  pointer-events: auto;
+}
+.tut-overlay.no-spot .tut-card {
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+}
+.tut-card .tut-step {
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--primary); margin-bottom: 4px;
+}
+.tut-card .tut-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; line-height: 1.3; }
+.tut-card .tut-text { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+.tut-card .tut-text code,
+.tut-card .tut-text b { color: var(--text); }
+.tut-card .tut-text b { font-weight: 700; }
+.tut-actions {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; margin-top: 14px;
+}
+.tut-nav { display: flex; gap: 7px; }
+.tut-actions button { padding: 7px 13px; font-size: 13px; }
+
+/* Little arrow that points from the card toward the spot */
+.tut-card::before {
+  content: ""; position: absolute; width: 12px; height: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line); border-right: none; border-bottom: none;
+  display: none;
+}
+.tut-card[data-arrow="up"]::before    { display: block; top: -7px; left: 28px; transform: rotate(45deg); }
+.tut-card[data-arrow="down"]::before  { display: block; bottom: -7px; left: 28px; transform: rotate(-135deg); }
+.tut-card[data-arrow="left"]::before  { display: block; left: -7px; top: 22px; transform: rotate(-45deg); }
+.tut-card[data-arrow="right"]::before { display: block; right: -7px; top: 22px; transform: rotate(135deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tut-spot { transition: none; }
+  .tut-card { animation: none; }
+}
