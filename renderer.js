@@ -770,6 +770,7 @@ function startGame() {
   showGame();
   renderGame();
   notify('比赛已创建。点「▶ 开始 / 继续」启动计时。', 'info');
+  maybeStartGameTutorial();
 }
 function openEdit(side, number) {
   const g = state.game;
@@ -970,6 +971,364 @@ el.copyDetail.addEventListener('click', async () => {
 });
 
 /* ====================================================== */
+/* TUTORIAL — spotlight onboarding                         */
+/* ====================================================== */
+const TUT_KEY = 'biba-tutorial-seen-v1';
+const tut = {
+  root: $('tutorial-root'),
+  steps: [],
+  index: 0,
+  ctx: null,           // 'setup' | 'game' (null = not running)
+  onDone: null,
+  resizeListener: null,
+  scrollListener: null,
+  keyListener: null,
+  cleanupFns: []
+};
+
+function getTutSeen() {
+  try { return JSON.parse(localStorage.getItem(TUT_KEY) || '{}') || {}; }
+  catch { return {}; }
+}
+function setTutSeen(ctx) {
+  const cur = getTutSeen();
+  cur[ctx] = true;
+  try { localStorage.setItem(TUT_KEY, JSON.stringify(cur)); }
+  catch { /* ignore */ }
+}
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function tutEnd() {
+  if (!tut.ctx) return;
+  const ctxBefore = tut.ctx;
+  const onDone = tut.onDone;
+  tut.cleanupFns.forEach((fn) => { try { fn(); } catch { /* ignore */ } });
+  tut.cleanupFns = [];
+  tut.root.innerHTML = '';
+  tut.root.classList.remove('active');
+  tut.root.setAttribute('aria-hidden', 'true');
+  if (tut.resizeListener) { window.removeEventListener('resize', tut.resizeListener); tut.resizeListener = null; }
+  if (tut.scrollListener) { window.removeEventListener('scroll', tut.scrollListener, true); tut.scrollListener = null; }
+  if (tut.keyListener) { window.removeEventListener('keydown', tut.keyListener); tut.keyListener = null; }
+  tut.steps = []; tut.index = 0; tut.ctx = null; tut.onDone = null;
+  setTutSeen(ctxBefore);
+  if (onDone) try { onDone(); } catch { /* ignore */ }
+}
+
+function startTutorial(ctx, steps, onDone) {
+  if (tut.ctx) return; // a tutorial is already running
+  if (!Array.isArray(steps) || !steps.length) return;
+  tut.ctx = ctx;
+  tut.steps = steps;
+  tut.index = 0;
+  tut.onDone = onDone || null;
+  tut.root.classList.add('active');
+  tut.root.setAttribute('aria-hidden', 'false');
+  // reposition on resize and on any scroll (capture phase to catch internal scrollers too)
+  tut.resizeListener = () => renderTutStep(tut.index, true);
+  tut.scrollListener = () => renderTutStep(tut.index, true);
+  window.addEventListener('resize', tut.resizeListener);
+  window.addEventListener('scroll', tut.scrollListener, true);
+  tut.keyListener = (e) => {
+    if (!tut.ctx) return;
+    if (e.key === 'Escape') { e.preventDefault(); tutEnd(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); tutNext(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); tutPrev(); }
+  };
+  window.addEventListener('keydown', tut.keyListener);
+  renderTutStep(0, false);
+}
+
+function tutNext() {
+  if (!tut.ctx) return;
+  tut.cleanupFns.forEach((fn) => { try { fn(); } catch { /* ignore */ } });
+  tut.cleanupFns = [];
+  if (tut.index >= tut.steps.length - 1) { tutEnd(); return; }
+  tut.index += 1;
+  renderTutStep(tut.index, false);
+}
+function tutPrev() {
+  if (!tut.ctx || tut.index <= 0) return;
+  tut.cleanupFns.forEach((fn) => { try { fn(); } catch { /* ignore */ } });
+  tut.cleanupFns = [];
+  tut.index -= 1;
+  renderTutStep(tut.index, false);
+}
+
+function renderTutStep(idx, isReposition) {
+  const step = tut.steps[idx];
+  if (!step) return;
+  if (!isReposition && step.before) {
+    try {
+      const cleanup = step.before();
+      if (typeof cleanup === 'function') tut.cleanupFns.push(cleanup);
+    } catch { /* ignore */ }
+  }
+  let mask = tut.root.querySelector('.tut-mask');
+  let spotlight = tut.root.querySelector('.tut-spotlight');
+  let popover = tut.root.querySelector('.tut-popover');
+  if (!isReposition) {
+    tut.root.innerHTML = '';
+    mask = document.createElement('div'); mask.className = 'tut-mask';
+    tut.root.appendChild(mask);
+    spotlight = document.createElement('div'); spotlight.className = 'tut-spotlight';
+    tut.root.appendChild(spotlight);
+    popover = document.createElement('div'); popover.className = 'tut-popover';
+    popover.innerHTML =
+      '<div class="tut-step-num"></div>' +
+      '<div class="tut-title"></div>' +
+      '<div class="tut-body"></div>' +
+      '<div class="tut-actions">' +
+        '<div class="tut-left"><button type="button" class="tut-skip">跳过教程</button></div>' +
+        '<div class="tut-right">' +
+          '<button type="button" class="tut-prev">← 上一步</button>' +
+          '<button type="button" class="primary tut-next">下一步 →</button>' +
+        '</div>' +
+      '</div>';
+    tut.root.appendChild(popover);
+    popover.querySelector('.tut-skip').addEventListener('click', tutEnd);
+    popover.querySelector('.tut-prev').addEventListener('click', tutPrev);
+    popover.querySelector('.tut-next').addEventListener('click', tutNext);
+  }
+  popover.querySelector('.tut-step-num').textContent = `第 ${idx + 1} / ${tut.steps.length} 步`;
+  popover.querySelector('.tut-title').textContent = step.title || '';
+  popover.querySelector('.tut-body').innerHTML = step.body || '';
+  popover.querySelector('.tut-prev').disabled = idx === 0;
+  popover.querySelector('.tut-next').textContent = idx === tut.steps.length - 1 ? '完成 ✓' : '下一步 →';
+
+  let rect = null;
+  if (step.selector) {
+    const target = (typeof step.selector === 'function') ? step.selector() : document.querySelector(step.selector);
+    if (target && target.isConnected) {
+      try { target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' }); } catch { /* ignore */ }
+      const r = target.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) rect = r;
+    }
+  }
+  positionTutOverlay(mask, spotlight, popover, rect, step.placement || 'auto');
+}
+
+function positionTutOverlay(mask, spotlight, popover, rect, placement) {
+  const PAD = 8, GAP = 14;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  if (!rect) {
+    spotlight.style.display = 'none';
+    mask.classList.add('dim');
+    popover.classList.remove('tip-top', 'tip-bottom', 'tip-left', 'tip-right');
+    popover.classList.add('tip-none');
+    const pw = popover.offsetWidth || 360;
+    const ph = popover.offsetHeight || 200;
+    popover.style.left = `${Math.max(8, (vw - pw) / 2)}px`;
+    popover.style.top  = `${Math.max(8, (vh - ph) / 2)}px`;
+    return;
+  }
+  spotlight.style.display = '';
+  mask.classList.remove('dim');
+  const sx = rect.left - PAD, sy = rect.top - PAD;
+  const sw = rect.width + 2 * PAD, sh = rect.height + 2 * PAD;
+  spotlight.style.left   = `${sx}px`;
+  spotlight.style.top    = `${sy}px`;
+  spotlight.style.width  = `${sw}px`;
+  spotlight.style.height = `${sh}px`;
+
+  const pw = popover.offsetWidth || 360;
+  const ph = popover.offsetHeight || 200;
+  const fitsBottom = (sy + sh + GAP + ph) <= (vh - 8);
+  const fitsTop    = (sy - GAP - ph) >= 8;
+  const fitsRight  = (sx + sw + GAP + pw) <= (vw - 8);
+  const fitsLeft   = (sx - GAP - pw) >= 8;
+  let chosen = placement;
+  if (chosen === 'auto') {
+    chosen = fitsBottom ? 'bottom' : fitsTop ? 'top' : fitsRight ? 'right' : fitsLeft ? 'left' : 'bottom';
+  } else if (chosen === 'bottom' && !fitsBottom && fitsTop) chosen = 'top';
+  else if (chosen === 'top'    && !fitsTop    && fitsBottom) chosen = 'bottom';
+  else if (chosen === 'left'   && !fitsLeft   && fitsRight)  chosen = 'right';
+  else if (chosen === 'right'  && !fitsRight  && fitsLeft)   chosen = 'left';
+
+  popover.classList.remove('tip-top', 'tip-bottom', 'tip-left', 'tip-right', 'tip-none');
+  let px, py, tipClass = '', tipX = 28, tipY = 28;
+  if (chosen === 'bottom') {
+    px = clamp(sx + sw / 2 - pw / 2, 8, vw - pw - 8);
+    py = Math.min(vh - ph - 8, sy + sh + GAP);
+    tipClass = 'tip-top';
+    tipX = clamp(sx + sw / 2 - px - 7, 14, pw - 22);
+  } else if (chosen === 'top') {
+    px = clamp(sx + sw / 2 - pw / 2, 8, vw - pw - 8);
+    py = Math.max(8, sy - GAP - ph);
+    tipClass = 'tip-bottom';
+    tipX = clamp(sx + sw / 2 - px - 7, 14, pw - 22);
+  } else if (chosen === 'right') {
+    px = Math.min(vw - pw - 8, sx + sw + GAP);
+    py = clamp(sy + sh / 2 - ph / 2, 8, vh - ph - 8);
+    tipClass = 'tip-left';
+    tipY = clamp(sy + sh / 2 - py - 7, 14, ph - 22);
+  } else { // left
+    px = Math.max(8, sx - GAP - pw);
+    py = clamp(sy + sh / 2 - ph / 2, 8, vh - ph - 8);
+    tipClass = 'tip-right';
+    tipY = clamp(sy + sh / 2 - py - 7, 14, ph - 22);
+  }
+  popover.classList.add(tipClass);
+  popover.style.setProperty('--tip-x', tipX + 'px');
+  popover.style.setProperty('--tip-y', tipY + 'px');
+  popover.style.left = `${px}px`;
+  popover.style.top  = `${py}px`;
+}
+
+const SETUP_TUT_STEPS = [
+  {
+    title: '欢迎使用 Basketball Scoreboard 🏀',
+    body: '我带你一分钟过一遍所有功能。先在这个 <strong>设置界面</strong> 配置两队，然后进入比赛界面就可以开始计分了。<br><br>随时可以按 <code>Esc</code> 或点 <strong>跳过教程</strong> 退出，之后想再看就点页面右上角的 <code>?</code>。',
+    selector: null
+  },
+  {
+    title: '主队名称',
+    body: '在这里填写 <strong>主队名</strong>。如果不填会用默认的「Home」。',
+    selector: '#home-name',
+    placement: 'bottom'
+  },
+  {
+    title: '逐个添加球员',
+    body: '输入 <strong>球衣号码</strong>（0–99）和 <strong>球员姓名</strong>，点 <strong>添加</strong> 或按回车即可加进名单。每队 1–15 名球员。',
+    selector: '.setup-card[data-side="home"] .roster-add',
+    placement: 'bottom'
+  },
+  {
+    title: '名单一览',
+    body: '添加好的球员会出现在这里。<strong>号码和姓名</strong>都可以直接修改，号码重复会标红。点末尾的 <strong>✕</strong> 可以删除。',
+    selector: '.setup-card[data-side="home"] .roster-table-wrap',
+    placement: 'bottom'
+  },
+  {
+    title: '批量导入名单',
+    body: '已经有一份名单的话，可以展开这里 <strong>粘贴批量导入</strong>。每行一个球员，格式 <code>号码 姓名</code>（空格 / 逗号 / Tab 分隔均可）。',
+    selector: '.setup-card[data-side="home"] details.batch',
+    placement: 'top',
+    before: () => {
+      const d = document.querySelector('.setup-card[data-side="home"] details.batch');
+      if (!d) return null;
+      const wasOpen = d.open;
+      d.open = true;
+      return () => { if (!wasOpen) d.open = false; };
+    }
+  },
+  {
+    title: '客队同样的填法',
+    body: '右边的 <strong>客队</strong> 卡片填法和左边完全一样，两队都填好后再继续。',
+    selector: '.setup-card[data-side="away"]',
+    placement: 'left'
+  },
+  {
+    title: '清除本地数据',
+    body: '所有名单和未结束的比赛都会自动保存在浏览器本地。如果想从零开始，点这里可以一键清空（包括名单和教程提示状态）。',
+    selector: '#clear-saved',
+    placement: 'top'
+  },
+  {
+    title: '准备好了，开始比赛！',
+    body: '两队都设置完毕后，点 <strong>Start Game</strong> 进入比赛界面。<br><br>📣 进入后会 <strong>自动出现一段比赛界面教程</strong>，告诉你怎么加分、记犯规、操作时钟和暂停。',
+    selector: '#start-game',
+    placement: 'top'
+  }
+];
+
+const GAME_TUT_STEPS = [
+  {
+    title: '比赛界面教程开始 🏀',
+    body: '这里会带你过一遍 <strong>计分、犯规、暂停</strong> 和 <strong>数据修正</strong> 的用法。共 12 步，约一分钟。',
+    selector: null
+  },
+  {
+    title: '顶部比分牌',
+    body: '左右两侧分别是 <strong>主队</strong>（蓝）和 <strong>客队</strong>（橙）的实时比分。下面的小标签依次是 <strong>全队犯规</strong> 和 <strong>剩余暂停次数</strong>。全队犯规达到 4 次会出现 <strong>BONUS</strong>（罚球红利）。',
+    selector: '.scoreboard',
+    placement: 'bottom'
+  },
+  {
+    title: '节次与倒计时',
+    body: '中间显示 <strong>当前节次</strong>（Q1–Q4 / OT1–OT2 / 加时绝杀）和 <strong>倒计时</strong>。下方的状态字会显示「进行中 / 已暂停 / 休息中 / 暂停中」等。',
+    selector: '.sb-center',
+    placement: 'bottom'
+  },
+  {
+    title: '加分第 1 步：选择球队',
+    body: '加任何数据前，先在这里选择是给 <strong>HOME 主队</strong> 还是 <strong>AWAY 客队</strong>。',
+    selector: '.team-toggle',
+    placement: 'bottom'
+  },
+  {
+    title: '加分第 2 步：输入球衣号码',
+    body: '在这里输入要 <strong>记录的球员球衣号</strong>。也可以直接 <strong>点下方表格里某一行</strong>，球队和号码会自动填进来。',
+    selector: '.jersey-wrap',
+    placement: 'bottom'
+  },
+  {
+    title: '加分第 3 步：+1 / +2 / +3',
+    body: '点 <strong>+1 / +2 / +3</strong> 给该球员加上对应分数，球队总比分会自动同步。<br>· <strong>+1</strong> = 罚球命中<br>· <strong>+2</strong> = 中距离 / 上篮<br>· <strong>+3</strong> = 三分球',
+    selector: '[data-score="2"]',
+    placement: 'bottom'
+  },
+  {
+    title: '统计：助攻 / 篮板 / 抢断 / 盖帽 / 犯规',
+    body: '点这些按钮给当前球员该项 <strong>+1</strong>。其中 <strong>犯规</strong> 还会累加全队犯规：到 <strong>4 次进入 BONUS</strong>，到 <strong>5 次球员被罚下</strong>。<br><br>📌 如果加错了，按 <strong>↶ 撤销</strong> 即可（最多 100 步）。',
+    selector: '[data-stat="fouls"]',
+    placement: 'bottom'
+  },
+  {
+    title: '比赛控制',
+    body: '<strong>▶ 开始 / 继续</strong>：启动倒计时<br><strong>⏸ 暂停</strong>：停时钟<br><strong>⏭ 跳过倒计时</strong>：快速跳过本节剩余时间、节间休息或球队请求暂停的 60 秒（会二次确认）',
+    selector: '#start-resume',
+    placement: 'bottom'
+  },
+  {
+    title: '撤销操作',
+    body: '加错分？点错统计？随时点 <strong>↶ 撤销</strong> 退回上一步，最多保留 100 步历史。',
+    selector: '#undo-action',
+    placement: 'bottom'
+  },
+  {
+    title: '球队请求暂停',
+    body: '主客队各有 <strong>请求暂停</strong> 按钮。每次扣 1 次暂停名额，启动 60 秒倒计时。<br><br>规则：<strong>上半场每队 1 次，下半场每队 2 次，加时各 1 次</strong>，由系统自动重置。',
+    selector: '[data-timeout="home"]',
+    placement: 'top'
+  },
+  {
+    title: '结束比赛 / 复制结果',
+    body: '<strong>结束比赛</strong>：手动终止本场（会确认）。<br><strong>复制比赛文本</strong>：把比分和球员数据复制到剪贴板，方便发到群里。<br><strong>复制全部信息</strong>：附带 2 分球 / 3 分球 / 罚球的命中次数明细。',
+    selector: '#copy-export',
+    placement: 'top'
+  },
+  {
+    title: '球员数据表 & 手动修正',
+    body: '下面是两队的 <strong>实时数据表</strong>。<br>· <strong>点表格中的行</strong> 会把该球员选中到上方计分台<br>· 点行末的 <strong>✎</strong> 可以 <strong>手动修正</strong> 任意数据（球队总比分和全队犯规会同步更新）',
+    selector: '#stats-grid',
+    placement: 'top'
+  },
+  {
+    title: '教程结束 🎉',
+    body: '所有数据都会自动保存在本地，<strong>关闭浏览器也不会丢</strong>。下次打开会自动恢复未结束的比赛（计时为安全起见会暂停）。<br><br>有任何疑问随时点 <strong>右上角 ?</strong> 重新打开教程。<br><br>祝比赛顺利！',
+    selector: null
+  }
+];
+
+function maybeStartSetupTutorial() {
+  if (getTutSeen().setup) return;
+  // brief delay so the page has a chance to paint first
+  setTimeout(() => { if (el.setupScreen.classList.contains('active') && !tut.ctx) startTutorial('setup', SETUP_TUT_STEPS); }, 150);
+}
+function maybeStartGameTutorial() {
+  if (getTutSeen().game) return;
+  setTimeout(() => { if (el.gameScreen.classList.contains('active') && !tut.ctx) startTutorial('game', GAME_TUT_STEPS); }, 150);
+}
+
+// help button — opens the tutorial for whichever screen is currently active
+$('help-btn').addEventListener('click', () => {
+  if (tut.ctx) return;
+  if (el.gameScreen.classList.contains('active')) startTutorial('game', GAME_TUT_STEPS);
+  else startTutorial('setup', SETUP_TUT_STEPS);
+});
+
+/* ====================================================== */
 /* INIT                                                    */
 /* ====================================================== */
 function init() {
@@ -987,8 +1346,10 @@ function init() {
     showGame();
     renderGame();
     notify('已恢复上次未结束的比赛（计时已暂停，确认无误后继续）。', 'info', 12000);
+    maybeStartGameTutorial();
   } else {
     showSetup();
+    maybeStartSetupTutorial();
   }
   updateResumeButton();
 }

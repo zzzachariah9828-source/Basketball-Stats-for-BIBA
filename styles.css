@@ -424,6 +424,89 @@ code { background: var(--surface-3); padding: 1.5px 6px; border-radius: 5px; fon
 .edit-grid label input { font-size: 14px; color: var(--text); text-align: center; font-family: var(--font-num); }
 .controls-row { display: flex; gap: 8px; }
 
+/* ---------- tutorial / spotlight onboarding ---------- */
+.help-btn {
+  position: fixed; top: 12px; right: 14px; z-index: 150;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+  font-size: 18px; font-weight: 700; color: var(--primary);
+  display: grid; place-items: center; padding: 0;
+  cursor: pointer;
+}
+.help-btn:hover { background: var(--primary-soft); border-color: var(--primary); }
+.help-btn:focus-visible { box-shadow: var(--ring); outline: none; }
+
+#tutorial-root { position: fixed; inset: 0; z-index: 300; pointer-events: none; }
+#tutorial-root.active { pointer-events: auto; }
+.tut-mask {
+  position: absolute; inset: 0;
+  background: transparent;
+  /* dim only when no element is being spotlighted (centered popovers) — the spotlight
+     ring below already dims the rest of the screen via its giant outer box-shadow */
+  transition: background-color 220ms var(--ease);
+  pointer-events: auto;
+}
+.tut-mask.dim { background: rgba(15, 23, 42, .55); }
+.tut-spotlight {
+  position: absolute;
+  border-radius: 14px;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .9), 0 0 0 9999px rgba(15, 23, 42, .55);
+  transition: top 220ms var(--ease), left 220ms var(--ease),
+              width 220ms var(--ease), height 220ms var(--ease);
+  pointer-events: none;
+  animation: tut-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tut-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(37, 99, 235, .9),  0 0 0 9999px rgba(15, 23, 42, .55); }
+  50%      { box-shadow: 0 0 0 6px rgba(37, 99, 235, .55), 0 0 0 9999px rgba(15, 23, 42, .55); }
+}
+.tut-popover {
+  position: absolute;
+  width: min(360px, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 16px 16px 14px;
+  pointer-events: auto;
+  animation: pop var(--t) var(--ease);
+}
+.tut-popover .tut-step-num {
+  font-size: 11px; font-weight: 700; color: var(--primary);
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px;
+}
+.tut-popover .tut-title { font-size: 15.5px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+.tut-popover .tut-body { font-size: 13.5px; line-height: 1.55; color: var(--muted); }
+.tut-popover .tut-body strong { color: var(--text); font-weight: 700; }
+.tut-popover .tut-body code { background: var(--surface-3); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+.tut-popover .tut-actions {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-top: 14px;
+}
+.tut-popover .tut-actions .tut-left,
+.tut-popover .tut-actions .tut-right { display: flex; gap: 8px; align-items: center; }
+.tut-popover .tut-actions button { font-size: 13px; padding: 7px 13px; }
+.tut-popover .tut-skip { background: transparent; border-color: transparent; box-shadow: none; color: var(--muted); }
+.tut-popover .tut-skip:hover { background: rgba(99, 110, 130, .1); color: var(--text); border-color: transparent; }
+/* arrow tip */
+.tut-popover::before {
+  content: ""; position: absolute; width: 14px; height: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+.tut-popover.tip-top::before    { top: -8px; left: var(--tip-x, 28px); border-right: none; border-bottom: none; }
+.tut-popover.tip-bottom::before { bottom: -8px; left: var(--tip-x, 28px); border-left: none; border-top: none; }
+.tut-popover.tip-left::before   { left: -8px; top: var(--tip-y, 28px); border-right: none; border-top: none; }
+.tut-popover.tip-right::before  { right: -8px; top: var(--tip-y, 28px); border-left: none; border-bottom: none; }
+.tut-popover.tip-none::before   { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tut-spotlight { animation: none; }
+  .tut-mask, .tut-spotlight { transition: none; }
+}
+
 /* ---------- animations ---------- */
 @keyframes slide { from { transform: translateY(-12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
