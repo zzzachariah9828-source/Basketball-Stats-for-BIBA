@@ -56,8 +56,8 @@ const el = {
   ctHome: $('ct-home'), ctAway: $('ct-away'),
   consoleNumber: $('console-number'), consoleFeedback: $('console-feedback'),
   // controls
-  startResume: $('start-resume'), pauseGame: $('pause-game'), undoAction: $('undo-action'),
-  endGame: $('end-game'), copyExport: $('copy-export'), backToSetup: $('back-to-setup'),
+  startResume: $('start-resume'), pauseGame: $('pause-game'), skipTime: $('skip-time'), undoAction: $('undo-action'),
+  endGame: $('end-game'), copyExport: $('copy-export'), copyDetail: $('copy-detail'), backToSetup: $('back-to-setup'),
   // stats / overlays
   statsGrid: $('stats-grid'),
   transitionCard: $('transition-card'), transitionTitle: $('transition-title'), transitionText: $('transition-text'), confirmTransition: $('confirm-transition'),
@@ -151,6 +151,14 @@ function loadPersisted() {
   if (data && data.game && data.game.home && data.game.away &&
       Array.isArray(data.game.home.players) && Array.isArray(data.game.away.players)) {
     state.game = data.game;
+    // older saves predate made1/made2/made3 — fill in zeros so exports don't crash
+    for (const side of ['home', 'away']) {
+      for (const p of state.game[side].players) {
+        if (typeof p.made1 !== 'number') p.made1 = 0;
+        if (typeof p.made2 !== 'number') p.made2 = 0;
+        if (typeof p.made3 !== 'number') p.made3 = 0;
+      }
+    }
   }
 }
 
@@ -347,7 +355,7 @@ el.resumeGame.addEventListener('click', () => { if (state.game) { showGame(); re
 function buildTeam(name, roster) {
   return {
     name, score: 0, timeouts: 1, fouls: 0,
-    players: roster.map((p) => ({ number: p.number, name: p.name, points: 0, assists: 0, rebounds: 0, steals: 0, blocks: 0, fouls: 0 }))
+    players: roster.map((p) => ({ number: p.number, name: p.name, points: 0, made1: 0, made2: 0, made3: 0, assists: 0, rebounds: 0, steals: 0, blocks: 0, fouls: 0 }))
   };
 }
 function buildGame(homeName, awayName, homeRoster, awayRoster) {
@@ -448,7 +456,7 @@ function advancePeriodAfterBreak(g) {
   if (g.periodType === 'Q' && g.periodIndex < 4) {
     g.periodIndex += 1;
     g.secondsLeft = RULES.quarterSeconds;
-    if (g.periodIndex !== 4) { g.home.fouls = 0; g.away.fouls = 0; }
+    g.home.fouls = 0; g.away.fouls = 0;
   } else if (g.periodType === 'Q' && g.periodIndex === 4) {
     g.periodType = 'OT'; g.periodIndex = 1; g.secondsLeft = RULES.overtimeSeconds;
   } else if (g.periodType === 'OT') {
@@ -508,8 +516,9 @@ function consoleApply(kind) {
   if (kind === 's1' || kind === 's2' || kind === 's3') {
     const pts = Number(kind[1]);
     player.points += pts;
+    player[`made${pts}`] = (player[`made${pts}`] || 0) + 1;
     teamObj.score += pts;
-    detail = `+${pts} 分`;
+    detail = pts === 1 ? '罚球 +1' : `+${pts} 分`;
     if (g.periodType === 'GP' && g.home.score !== g.away.score) finishGame('「加时绝杀」决出胜负。');
   } else {
     const field = kind; // assists | rebounds | steals | blocks | fouls
@@ -667,6 +676,7 @@ function renderClock() {
   const fin = !!g.finished;
   el.startResume.disabled = fin || !!g.pendingTransition || g.break != null || !!g.timeout;
   el.pauseGame.disabled = fin || !g.running || g.break != null;
+  el.skipTime.disabled = !skippableMode(g);
   el.endGame.disabled = fin;
   el.confirmTransition.disabled = !g.pendingTransition;
   el.consoleNumber.disabled = fin;
@@ -838,6 +848,37 @@ el.pauseGame.addEventListener('click', () => {
   renderGame();
   persist();
 });
+function skippableMode(g) {
+  if (!g || g.finished || g.pendingTransition) return null;
+  if (g.break != null) return 'break';
+  if (g.timeout) return 'timeout';
+  if (g.running && g.periodType !== 'GP') return 'quarter';
+  return null;
+}
+el.skipTime.addEventListener('click', () => {
+  const g = state.game;
+  const mode = skippableMode(g);
+  if (!mode) return;
+  const prompt = mode === 'break'   ? '跳过本次休息倒计时，直接结束休息？'
+              : mode === 'timeout' ? '跳过球队请求的暂停（60 秒）倒计时？'
+              : '跳过本节剩余比赛时间，直接结束本节？（这将改变比赛进程）';
+  if (!confirm(prompt)) return;
+  pushUndo();
+  if (mode === 'break') {
+    g.break = null;
+    advancePeriodAfterBreak(g);
+  } else if (mode === 'timeout') {
+    g.timeout = null;
+    g.status = 'paused';
+    notify('已跳过暂停。', 'info');
+  } else {
+    g.secondsLeft = 0;
+    g.running = false;
+    onPeriodExpired();
+  }
+  renderGame();
+  persist();
+});
 el.confirmTransition.addEventListener('click', () => {
   const g = state.game;
   if (!g || !g.pendingTransition) return;
@@ -902,6 +943,29 @@ el.copyExport.addEventListener('click', async () => {
   if (!state.game) return;
   const text = buildExportText();
   try { await navigator.clipboard.writeText(text); notify('比赛文本已复制到剪贴板。', 'info'); }
+  catch { notify('复制失败，文本已输出到开发者控制台。', 'warn'); console.log(text); }
+});
+
+function buildDetailedExportText() {
+  const g = state.game;
+  if (!g) return '';
+  const teamBlock = (team) => {
+    const sorted = team.players.slice().sort((a, b) => a.number - b.number);
+    const lines = sorted.map((p) => {
+      const m1 = p.made1 || 0, m2 = p.made2 || 0, m3 = p.made3 || 0;
+      return `  #${p.number} ${p.name} — 总分:${p.points}（2分球:${m2}次/${m2 * 2}分 · 3分球:${m3}次/${m3 * 3}分 · 罚球:${m1}次/${m1}分） 助攻:${p.assists} 篮板:${p.rebounds} 抢断:${p.steals} 盖帽:${p.blocks} 犯规:${p.fouls}`;
+    });
+    return [`${team.name}（${team.score}）· 全队犯规 ${team.fouls}${team.fouls >= RULES.bonusFouls ? '（BONUS）' : ''}：`, ...lines].join('\n');
+  };
+  const head = g.finished
+    ? '终场比分'
+    : `比分（${periodName(g)} ${g.periodType === 'GP' ? '加时绝杀' : fmt(g.break != null ? g.break : g.secondsLeft)}）`;
+  return `${head}：${g.home.name} ${g.home.score} : ${g.away.score} ${g.away.name}\n\n${teamBlock(g.home)}\n\n${teamBlock(g.away)}`;
+}
+el.copyDetail.addEventListener('click', async () => {
+  if (!state.game) return;
+  const text = buildDetailedExportText();
+  try { await navigator.clipboard.writeText(text); notify('全部信息已复制到剪贴板。', 'info'); }
   catch { notify('复制失败，文本已输出到开发者控制台。', 'warn'); console.log(text); }
 });
 
