@@ -977,7 +977,7 @@ const TUT_STEPS = {
   setup: [
     { target: null,
       title: '欢迎使用 BIBA 篮球记分',
-      text: '这是一个 30 秒的小教程，带你过一遍设置和比赛界面。点「下一步」继续，随时可以「跳过教程」。' },
+      text: '这是一个小教程，<b>分两段</b>：先教设置，然后<b>点 Start Game 进入比赛界面后会自动开始第二段</b>教你怎么记分。所以建议<b>尽快把名单填好，早点开始比赛</b>。点「下一步」继续，随时可以「跳过教程」。' },
     { target: '#home-name', placement: 'bottom',
       title: '① 填主队名字',
       text: '左边是主队，右边是客队，先填好两队名字。' },
@@ -998,7 +998,7 @@ const TUT_STEPS = {
       text: '右边是客队，填法和主队一模一样。' },
     { target: '#start-game', placement: 'top',
       title: '⑦ 两队都设置好后，点这里',
-      text: '点「Start Game」进入比赛界面，下一节教你怎么操作。' }
+      text: '点「Start Game」<b>进入比赛界面后会自动开始第二段教程</b>（共 9 步），教你怎么记分、用时钟、修数据。' }
   ],
   game: [
     { target: null,
@@ -1045,12 +1045,30 @@ function markTutSeen(screen) {
 function tutorialSeen(screen) { return !!loadTutSeen()[screen]; }
 
 function tutEl(id) { return document.getElementById(id); }
+function setUnderlyingInert(on) {
+  // Make the page beneath the tour non-interactive during the tour:
+  // inert disables clicks, focus, keyboard input, and tabbing into the subtree.
+  // The tutorial overlay sits outside #setup-screen/#game-screen, so it remains
+  // interactive.
+  ['setup-screen', 'game-screen'].forEach((id) => {
+    const node = document.getElementById(id);
+    if (!node) return;
+    if (on) node.setAttribute('inert', '');
+    else node.removeAttribute('inert');
+  });
+  // Also blur whatever the user had focused, so an already-focused input
+  // doesn't keep accepting keystrokes.
+  if (on && document.activeElement && typeof document.activeElement.blur === 'function') {
+    try { document.activeElement.blur(); } catch { /* ignore */ }
+  }
+}
 function startTutorial(screen) {
   if (!TUT_STEPS[screen]) return;
   tutorial.active = true;
   tutorial.screen = screen;
   tutorial.step = 0;
   tutEl('tutorial-overlay').classList.remove('hidden');
+  setUnderlyingInert(true);
   if (!tutResizeBound) {
     window.addEventListener('resize', () => { if (tutorial.active) renderTutStep(); });
     window.addEventListener('scroll', () => { if (tutorial.active) renderTutStep(); }, true);
@@ -1064,6 +1082,7 @@ function endTutorial(markSeen) {
   tutorial.screen = null;
   tutorial.step = 0;
   tutEl('tutorial-overlay').classList.add('hidden');
+  setUnderlyingInert(false);
 }
 function tutNext() {
   const steps = TUT_STEPS[tutorial.screen];
